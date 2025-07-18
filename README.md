@@ -1,4 +1,6 @@
-# DeepCoreML
+# TADS
+Tabular Data Synthesizers (Formerly DeepCoreML)
+
 A collection of Machine Learning techniques for data management and augmentation.
 
 DeepCoreML is a collection of Machine Learning techniques for data management, engineering, and augmentation. More specifically, DeepCoreML includes modules for:
