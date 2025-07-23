@@ -1,33 +1,35 @@
 from distutils.core import setup
 from setuptools import find_packages
 
-DESCRIPTION = 'A collection of Machine Learning techniques for data management, engineering and augmentation.'
-LONG_DESCRIPTION = '<p>DeepCoreML is a collection of Machine Learning techniques for data management, engineering, ' \
-    'and augmentation. More specifically, DeepCoreML includes modules for:</p>'\
-    '<ul>' \
-    '<li>Data management</li>' \
-    '<li>Text data preprocessing</li>' \
-    '<li>Text representation, vectorization, embeddings</li>' \
-    '<li>Dimensionality reduction</li>' \
-    '<li>Generative modeling</li>' \
-    '<li>Imbalanced datasets</li>' \
-    '</ul>' \
-    '<p><b>Licence:</b> Apache License, 2.0 (Apache-2.0)</p>' \
-    '<p><b>Dependencies:</b>NumPy, Pandas, Matplotlib, Seaborn, joblib, Synthetic Data Vault (SDV), pyTorch,' \
-    'scikit-learn, xgboost, imblearn, Reversible Data Transforms (RDT), tqdm.</p>'\
-    '<p><b>GitHub repository:</b> '\
-    '<a href="https://github.com/lakritidis/DeepCoreML">https://github.com/lakritidis/DeepCoreML</a></p>' \
-    '<p><b>Publications:</b><ul>' \
-    '<li>L. Akritidis, P. Bozanis, "A Clustering-Based Resampling Technique with Cluster Structure Analysis for' \
-    'Software Defect Detection in Imbalanced Datasets", Information Sciences, vol. 674, pp. 120724, 2024.</li>' \
-    '<li>L. Akritidis, A. Fevgas, M. Alamaniotis, P. Bozanis, "Conditional Data Synthesis with Deep Generative Models '\
-    'for Imbalanced Dataset Oversampling", In Proceedings of the 35th IEEE International Conference on Tools with '\
-    'Artificial Intelligence (ICTAI), pp. 444-451, 2023, 2023.</li>' \
-    '</ul></p>'
-
+DESCRIPTION = 'Tabular Data Synthesizers'
+LONG_DESCRIPTION = ('<p>TADS is a library containing models and algorithm implementations for synthesizing artificial '
+                    'tabular data. Such synthetic data are frequently useful in numerous classification and regression '
+                    'tasks under the presence of imbalanced datasets. Examples include fault/defect detection, '
+                    'intrusion detection, medical diagnoses, financial predictions, etc.</p>'
+                    '<p>Most models in TADS support conditional data generation, namely, generation of data instances '
+                    'that belong to a particular class. The models accept tabular data in CSV format and additional '
+                    'information about the column structure (e.g. columns with numeric/discrete values, class columns, '
+                    'etc.). Then, they are trained to generate additional samples either from a specific class, or '
+                    'without any condition. For the moment, TADS emphasizes on Generative Adversarial Networks (GANs), '
+                    'but more models and algorithms will be supported in the future.</p>'
+                    '<p><b>Licence:</b> Apache License, 2.0 (Apache-2.0)</p>'
+                    '<p><b>Dependencies:</b>NumPy, Pandas, Matplotlib, Seaborn, joblib, Synthetic Data Vault (SDV), '
+                    'pyTorch, scikit-learn, xgboost, imblearn, Reversible Data Transforms (RDT), tqdm.</p>'
+                    '<p><b>GitHub repository:</b> '
+                    '<a href="https://github.com/lakritidis/TADS">https://github.com/lakritidis/tads</a></p>'
+                    '<p><b>Publications:</b><ul>'
+                    '<li>L. Akritidis, P. Bozanis, "A Clustering-Based Resampling Technique with Cluster Structure '
+                    'Analysis for Software Defect Detection in Imbalanced Datasets", Information Sciences, vol. 674,'
+                    'pp. 120724, 2024.</li>'
+                    '<li>L. Akritidis, A. Fevgas, M. Alamaniotis, P. Bozanis, "Conditional Data Synthesis with Deep '
+                    'Generative Models for Imbalanced Dataset Oversampling", In Proceedings of the 35th IEEE '
+                    'International Conference on Tools with Artificial Intelligence, pp. 444-451, 2023, 2023.</li>'
+                    '<li>L. Akritidis, P. Bozanis, "A Multi-Dimensional Survey on Learning from Imbalanced Data", '
+                    'Chapter in Machine Learning Paradigms - Advances in Theory and Applications of Learning from '
+                    'Imbalanced Data, to appear, 2023.</li>')
 setup(
-    name='DeepCoreML',
-    version='0.4.6',
+    name='TADS',
+    version='0.5.1',
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown',
@@ -37,7 +39,7 @@ setup(
     maintainer_email="lakritidis@ihu.gr",
     packages=find_packages(),
     package_data={'': ['generators/*']},
-    url='https://github.com/lakritidis/DeepCoreML',
+    url='https://github.com/lakritidis/tads',
     install_requires=["numpy",
                       "pandas",
                       "matplotlib",

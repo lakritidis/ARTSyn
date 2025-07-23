@@ -7,7 +7,7 @@ Most models in TADS support conditional data generation, namely, generation of d
 
 The library is licensed under the Apache License, 2.0 (Apache-2.0)
 
-Install with `pip install DeepCoreML`
+Install with `pip install tads`
 
 Relevant Publications:
 
