@@ -25,8 +25,8 @@ LONG_DESCRIPTION = ('<p>TADS is a library containing models and algorithm implem
                     'Generative Models for Imbalanced Dataset Oversampling", In Proceedings of the 35th IEEE '
                     'International Conference on Tools with Artificial Intelligence, pp. 444-451, 2023, 2023.</li>'
                     '<li>L. Akritidis, P. Bozanis, "A Multi-Dimensional Survey on Learning from Imbalanced Data", '
-                    'Chapter in Machine Learning Paradigms - Advances in Theory and Applications of Learning from '
-                    'Imbalanced Data, to appear, 2023.</li>')
+                    'Chapter in International Conference on Information, Intelligence, Systems, and Applications, '
+                    'pp. 13-45, 2024.</li>')
 setup(
     name='TADS',
     version='0.5.1',
