@@ -8,15 +8,15 @@ from imblearn.over_sampling import SVMSMOTE
 from imblearn.over_sampling import KMeansSMOTE
 from imblearn.over_sampling import ADASYN
 
-from tads.generators.c_gan import cGAN
-from tads.generators.sb_gan import sbGAN
-from tads.generators.ct_gan import ctGAN
-from tads.generators.ctd_gan import ctdGAN
-from tads.generators.cbr import CBR
-from tads.generators.ctabganplus_synthesizer import CTABGANPlusSynthesizer
-from tads.generators.ctabgan_synthesizer import CTABGANSynthesizer
-from tads.generators.fctgan_synthesizer import FCTGANSynthesizer
-from tads.TabularTransformer import TabularTransformer
+from artsyn.generators.c_gan import cGAN
+from artsyn.generators.sb_gan import sbGAN
+from artsyn.generators.ct_gan import ctGAN
+from artsyn.generators.ctd_gan import ctdGAN
+from artsyn.generators.cbr import CBR
+from artsyn.generators.ctabganplus_synthesizer import CTABGANPlusSynthesizer
+from artsyn.generators.ctabgan_synthesizer import CTABGANSynthesizer
+from artsyn.generators.fctgan_synthesizer import FCTGANSynthesizer
+from artsyn.TabularTransformer import TabularTransformer
 
 from sdv.single_table import GaussianCopulaSynthesizer
 from sdv.single_table import CTGANSynthesizer
