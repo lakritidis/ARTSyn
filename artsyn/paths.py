@@ -1,11 +1,11 @@
-#base_path = '/media/leo/7CE54B377BB9B18B/'
-#out_path = 'dev/Python/'
+base_path = '/media/leo/7CE54B377BB9B18B/'
+out_path = 'dev/Python/'
 
 # base_path = 'C:/Users/Owner/PycharmProjects/'
 # out_path = ''
 
-base_path = 'D:/'
-out_path = 'dev/Python/'
+#base_path = 'D:/'
+#out_path = 'dev/Python/'
 
 # Evaluation files output paths
 resampling_path_performance = base_path + out_path + 'Experiments/dctdGAN/results/Resampling/'
