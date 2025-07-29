@@ -29,7 +29,7 @@ LONG_DESCRIPTION = ('<p>ARTSyn is a library containing models and algorithm impl
                     'pp. 13-45, 2024.</li>')
 setup(
     name='ARTSyn',
-    version='0.5.1',
+    version='0.5.2',
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown',
