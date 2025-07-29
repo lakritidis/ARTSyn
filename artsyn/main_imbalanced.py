@@ -12,7 +12,6 @@ np.set_printoptions(linewidth=400, threshold=sys.maxsize)
 
 seed = 42
 
-
 software_defect_detection_datasets = {
     'AR1': {'path': paths.bin_cont + 'ar1.csv', 'categorical_cols': (), 'class_col': 29},
     'AR4': {'path': paths.bin_cont + 'ar4.csv', 'categorical_cols': (), 'class_col': 29},

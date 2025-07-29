@@ -334,15 +334,15 @@ class TestSynthesizers:
             SDVResampler(name="COP-GAN", model=cop_gan, random_state=random_state),
             SDVResampler(name="CTABGAN", model=ctabgan, random_state=random_state),
             SDVResampler(name="CTABGAN+", model=ctabgan_plus, random_state=random_state),
-            SDVResampler(name="FCTBGAN", model=fct_gan, random_state=random_state),
+            # SDVResampler(name="FCTBGAN", model=fct_gan, random_state=random_state),
 
             CTResampler("CTD-GAN-KM", model=ctdgan_km, random_state=random_state),
             CTResampler("CTD-GAN-HAC", model=ctdgan_hac, random_state=random_state),
 
-            CTResampler("DCTD-GAN-KM-U", model=dctdgan_km_u, random_state=random_state),
-            CTResampler("DCTD-GAN-KM-Q", model=dctdgan_km_q, random_state=random_state),
-            CTResampler("DCTD-GAN-KM-K", model=dctdgan_km_k, random_state=random_state),
-            CTResampler("DCTD-GAN-KM-BGM", model=dctdgan_km_b, random_state=random_state),
+            # CTResampler("DCTD-GAN-KM-U", model=dctdgan_km_u, random_state=random_state),
+            # CTResampler("DCTD-GAN-KM-Q", model=dctdgan_km_q, random_state=random_state),
+            # CTResampler("DCTD-GAN-KM-K", model=dctdgan_km_k, random_state=random_state),
+            # CTResampler("DCTD-GAN-KM-BGM", model=dctdgan_km_b, random_state=random_state),
         ]
 
         self.over_samplers_dctd_ = [
