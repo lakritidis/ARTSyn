@@ -18,15 +18,17 @@ LONG_DESCRIPTION = ('<p>ARTSyn is a library containing models and algorithm impl
                     '<p><b>GitHub repository:</b> '
                     '<a href="https://github.com/lakritidis/ARTSyn">https://github.com/lakritidis/artsyn</a></p>'
                     '<p><b>Publications:</b><ul>'
+                    '<li>L. Akritidis, P. Bozanis, "A Conditional GAN for Tabular Data Generation with Probabilistic'
+                    'Sampling of Latent Subspaces", arXiv preprint arXiv:2508.00472, 2025</li>'
                     '<li>L. Akritidis, P. Bozanis, "A Clustering-Based Resampling Technique with Cluster Structure '
                     'Analysis for Software Defect Detection in Imbalanced Datasets", Information Sciences, vol. 674,'
-                    'pp. 120724, 2024.</li>'
+                    'pp. 120724, 2024</li>'
                     '<li>L. Akritidis, A. Fevgas, M. Alamaniotis, P. Bozanis, "Conditional Data Synthesis with Deep '
                     'Generative Models for Imbalanced Dataset Oversampling", In Proceedings of the 35th IEEE '
-                    'International Conference on Tools with Artificial Intelligence, pp. 444-451, 2023, 2023.</li>'
+                    'International Conference on Tools with Artificial Intelligence, pp. 444-451, 2023</li>'
                     '<li>L. Akritidis, P. Bozanis, "A Multi-Dimensional Survey on Learning from Imbalanced Data", '
-                    'Chapter in International Conference on Information, Intelligence, Systems, and Applications, '
-                    'pp. 13-45, 2024.</li>')
+                    'Lecture Notes in Networks and Systems, 1093 LNNS, pp. 13–45, 2024</li>'
+                    '</ul></p>')
 setup(
     name='ARTSyn',
     version='0.5.2',
