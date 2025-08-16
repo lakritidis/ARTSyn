@@ -16,7 +16,7 @@ The library is licensed under the Apache License, 2.0 (Apache-2.0)
 
 Install with `pip install artsyn`
 
-Relevant Publications:
+## Relevant Publications:
 
 * L. Akritidis, P. Bozanis, "[A Conditional GAN for Tabular Data Generation with Probabilistic Sampling of Latent Subspaces](https://arxiv.org/abs/2508.00472)", arXiv preprint arXiv:2508.00472, 2025
 * L. Akritidis, P. Bozanis, "[A Clustering-Based Resampling Technique with Cluster Structure Analysis for Software Defect Detection in Imbalanced Datasets](https://www.sciencedirect.com/science/article/abs/pii/S0020025524006376)", Information Sciences, vol. 674, pp. 120724, 2024
