@@ -27,7 +27,7 @@ class ctdGAN(GANSynthesizer):
     instances are generated via a probabilistic sampling strategy.
     """
     def __init__(self, discriminator=(128, 128), generator=(256, 256), embedding_dim=128, epochs=300, batch_size=32,
-                 pac=1, lr=2e-4, decay=1e-6, sampling_strategy='auto', 
+                 pac=1, lr=2e-4, decay=1e-6, sampling_strategy='auto', disc_grad_noise=False, gen_grad_noise=False,
                  scaler='stds', bins='auto', cluster_method='kmeans', max_clusters=20, random_state=0):
         """ctdGAN initializer
 
@@ -80,6 +80,10 @@ class ctdGAN(GANSynthesizer):
             self._scaler = 'mms11'
         else:
             self._scaler = scaler
+
+        # Add gradient noise to the Critic and Generator
+        self.disc_grad_noise = disc_grad_noise
+        self.gen_grad_noise = gen_grad_noise
 
         # Discretization bins: Used only when scaler is in ('bins-w', 'bins-f')
         # _discretizer transforms the continuous variables to discrete ones when self._scaler = 'bins'
@@ -372,6 +376,8 @@ class ctdGAN(GANSynthesizer):
         self.D_optimizer_.zero_grad(set_to_none=True)
         pen.backward(retain_graph=True)
         disc_loss.backward()
+        if self.disc_grad_noise:
+            self.add_gradient_noise(self.D_) # Add gradient noise to the Critic
         self.D_optimizer_.step()
 
         # GENERATOR TRAINING
@@ -389,9 +395,18 @@ class ctdGAN(GANSynthesizer):
 
         self.G_optimizer_.zero_grad(set_to_none=True)
         gen_loss.backward()
+        if self.gen_grad_noise:
+            self.add_gradient_noise(self.G_)  # Add gradient noise to the Generator
         self.G_optimizer_.step()
 
         return disc_loss, gen_loss
+
+    def add_gradient_noise(self, model, stddev=1e-3):
+        for param in model.parameters():
+            if param.grad is not None:
+                noise = stddev * torch.randn_like(param.grad)
+                param.grad += noise
+
 
     def _train(self, x_train, y_train, categorical_columns=(), store_losses=None):
         """

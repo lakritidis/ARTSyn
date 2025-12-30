@@ -3,6 +3,54 @@
 import torch
 import torch.nn as nn
 
+class DropConnectLinear(nn.Linear):
+    def __init__(self, in_features, out_features, p=0.2, bias=True):
+        super().__init__(in_features, out_features, bias)
+        self.p = p  # drop probability
+
+    def forward(self, x):
+        if self.training and self.p > 0:
+            # Create binary mask for weights
+            mask = (torch.rand_like(self.weight) > self.p).float()
+            w = self.weight * mask
+        else:
+            w = self.weight
+        return nn.functional.linear(x, w, self.bias)
+
+class Residual(nn.Module):
+    """Residual layer for the CTGAN."""
+
+    def __init__(self, i, o):
+        super(Residual, self).__init__()
+        self.fc = nn.Linear(i, o)
+        self.bn = nn.BatchNorm1d(o)
+        self.relu = nn.ReLU()
+        self.dc = DropConnectLinear(i, o, p=0.2)
+
+    def forward(self, input_):
+        """Apply the Residual layer to the `input_`."""
+        out = self.fc(input_)
+        out = self.bn(out)
+        out = self.relu(out)
+        return torch.cat([out, input_], dim=1)
+
+class ctGenerator(nn.Module):
+    """Generator for ctGAN and ctdGAN"""
+
+    def __init__(self, embedding_dim, architecture, data_dim):
+        super().__init__()
+        dim = embedding_dim
+        seq = []
+        for item in list(architecture):
+            seq += [Residual(dim, item)]
+            dim += item
+        seq.append(nn.Linear(dim, data_dim))
+        self.seq = nn.Sequential(*seq)
+
+    def forward(self, input_):
+        """Apply the Generator to the `input_`."""
+        data = self.seq(input_)
+        return data
 
 class Generator(nn.Module):
     """
@@ -62,39 +110,3 @@ class Generator(nn.Module):
     def display(self):
         print(self.model)
         print(self.model.parameters())
-
-
-class Residual(nn.Module):
-    """Residual layer for the CTGAN."""
-
-    def __init__(self, i, o):
-        super(Residual, self).__init__()
-        self.fc = nn.Linear(i, o)
-        self.bn = nn.BatchNorm1d(o)
-        self.relu = nn.ReLU()
-
-    def forward(self, input_):
-        """Apply the Residual layer to the `input_`."""
-        out = self.fc(input_)
-        out = self.bn(out)
-        out = self.relu(out)
-        return torch.cat([out, input_], dim=1)
-
-
-class ctGenerator(nn.Module):
-    """Generator for ctGAN and ctdGAN"""
-
-    def __init__(self, embedding_dim, architecture, data_dim):
-        super().__init__()
-        dim = embedding_dim
-        seq = []
-        for item in list(architecture):
-            seq += [Residual(dim, item)]
-            dim += item
-        seq.append(nn.Linear(dim, data_dim))
-        self.seq = nn.Sequential(*seq)
-
-    def forward(self, input_):
-        """Apply the Generator to the `input_`."""
-        data = self.seq(input_)
-        return data

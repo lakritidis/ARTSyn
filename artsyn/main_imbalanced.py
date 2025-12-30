@@ -10,7 +10,7 @@ num_threads = 1
 os.environ['OMP_NUM_THREADS'] = str(num_threads)
 np.set_printoptions(linewidth=400, threshold=sys.maxsize)
 
-seed = 42
+seed = 1
 
 software_defect_detection_datasets = {
     'AR1': {'path': paths.bin_cont + 'ar1.csv', 'categorical_cols': (), 'class_col': 29},
