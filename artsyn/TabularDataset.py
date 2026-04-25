@@ -14,7 +14,7 @@ from sklearn.metrics import make_scorer
 from sklearn.metrics import f1_score, accuracy_score, balanced_accuracy_score, precision_score, recall_score
 from imblearn.metrics import sensitivity_score, specificity_score
 
-from artsyn.Dataset import Dataset
+from DeepCoreML.Dataset import Dataset
 
 import warnings
 
@@ -62,7 +62,6 @@ class TabularDataset(Dataset):
             self.categorical_columns = list(categorical_columns)
             self._label_encoders = [LabelEncoder() for _ in range(len(self.categorical_columns))]
 
-        self.continuous_columns = None
         self._class_encoder = LabelEncoder()
         self.x_ = None
         self.y_ = None
@@ -98,10 +97,9 @@ class TabularDataset(Dataset):
         self.num_rows = num_samples
         self.num_columns = self.dimensionality = x.shape[1]
 
-        print("Synthetic dataset created")
-        print("Num Samples:", self.num_rows, "\nClass Distribution:")
-        for k in range(self.num_classes):
-            print("\tClass", k, ":", len(y[y == k]), "samples")
+        # print("Num Samples:", self.num_rows, "\nClass Distribution:")
+        # for k in range(self.num_classes):
+        #    print("\tClass", k, ":", len(y[y == k]), "samples")
 
     # Load a dataset from an external CSV file
     def load_from_csv(self, path=''):
@@ -125,7 +123,11 @@ class TabularDataset(Dataset):
         self.df_.reset_index(drop=True, inplace=True)
 
         # Step 2: Shuffle the dataframe
-        self.df_.sample(frac=1)
+        self.df_ = self.df_.sample(frac=1).reset_index(drop=True)
+
+        # Test only for 1000 rows
+        #self.df_ = self.df_.iloc[:1000, :]
+        #print(self.df_)
 
         self.num_rows = self.df_.shape[0]
         self.num_columns = self.df_.shape[1]
@@ -154,8 +156,6 @@ class TabularDataset(Dataset):
             for c in range(len(self.categorical_columns)):
                 col = str(self.categorical_columns[c])
                 self.df_[col] = self._label_encoders[c].fit_transform(self.df_[col])
-
-        self.continuous_columns = [c for c in range(self.num_columns - 1) if c not in self.categorical_columns]
 
         # Step 6: Label Encode the class labels (after stripping the whitespace)
         if pd.api.types.is_string_dtype(self.df_[str(self.class_column)].dtype):
@@ -270,6 +270,9 @@ class TabularDataset(Dataset):
         ]
 
         return results_list, mean_results_list
+
+    def get_name(self):
+        return self._name
 
     # Return the dataframe
     def get_data(self):

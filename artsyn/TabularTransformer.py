@@ -22,7 +22,6 @@ ColumnTransformInfo = namedtuple(
 )
 
 
-
 class TabularTransformer(object):
     """Data Transformer.
 
@@ -59,7 +58,7 @@ class TabularTransformer(object):
         self._with_mean = with_mean
         self._with_std = with_std
         self._column_raw_dtypes = []
-        self._column_transform_info_list = []
+        self.column_transform_info_list = []
         self._clip = clip
         self.output_info_list = []
         self.output_dimensions = 0
@@ -138,6 +137,17 @@ class TabularTransformer(object):
 
         return cti
 
+    def _show_ohe_vectors(self, enc):
+        categories = enc.dummies
+        columns = list(enc.get_output_sdtypes().keys())
+        vectors = {}
+        for i, cat in enumerate(categories):
+            vec = [0] * len(categories)
+            vec[i] = 1
+            vectors[cat] = vec
+
+        print(pd.DataFrame.from_dict(vectors, orient='index', columns=columns))
+
     def _fit_discrete(self, data):
         """Fit one hot encoder for discrete column.
 
@@ -152,6 +162,8 @@ class TabularTransformer(object):
         ohe.fit(data, column_name)
         num_categories = len(ohe.dummies)
         self.ohe_dimensions += num_categories
+
+        #self._show_ohe_vectors(ohe)
 
         return ColumnTransformInfo(
             column_name=column_name, column_type='discrete', transform=ohe,
@@ -177,16 +189,18 @@ class TabularTransformer(object):
             raw_data = pd.DataFrame(raw_data, columns=column_names)
 
         self._column_raw_dtypes = raw_data.infer_objects().dtypes
-        self._column_transform_info_list = []
+        self.column_transform_info_list = []
         for column_name in raw_data.columns:
             if column_name in discrete_columns:
+                #print("Fitting discrete column", column_name)
                 column_transform_info = self._fit_discrete(raw_data[[column_name]])
             else:
+                #print("Fitting continuous column", column_name)
                 column_transform_info = self._fit_continuous(raw_data[[column_name]])
 
             self.output_info_list.append(column_transform_info.output_info)
             self.output_dimensions += column_transform_info.output_dimensions
-            self._column_transform_info_list.append(column_transform_info)
+            self.column_transform_info_list.append(column_transform_info)
 
     def _transform_continuous(self, column_transform_info, data):
         output = None
@@ -260,10 +274,10 @@ class TabularTransformer(object):
             raw_data = pd.DataFrame(raw_data, columns=column_names)
 
         # Only use parallelization with larger data sizes. Otherwise, the transformation will be slower.
-        if raw_data.shape[0] < 500:
-            column_data_list = self._synchronous_transform(raw_data, self._column_transform_info_list)
+        if raw_data.shape[0] < 50000:
+            column_data_list = self._synchronous_transform(raw_data, self.column_transform_info_list)
         else:
-            column_data_list = self._parallel_transform(raw_data, self._column_transform_info_list)
+            column_data_list = self._parallel_transform(raw_data, self.column_transform_info_list)
 
         return np.concatenate(column_data_list, axis=1).astype(float)
 
@@ -293,7 +307,7 @@ class TabularTransformer(object):
 
         return ret_data
 
-    def _inverse_transform_discrete(self, column_transform_info, column_data):
+    def inverse_transform_discrete(self, column_transform_info, column_data):
         ohe = column_transform_info.transform
         data = pd.DataFrame(column_data, columns=list(ohe.get_output_sdtypes()))
         return ohe.reverse_transform(data)[column_transform_info.column_name]
@@ -307,13 +321,13 @@ class TabularTransformer(object):
         st = 0
         recovered_column_data_list = []
         column_names = []
-        for column_transform_info in self._column_transform_info_list:
+        for column_transform_info in self.column_transform_info_list:
             dim = column_transform_info.output_dimensions
             column_data = data[:, st:st + dim]
             if column_transform_info.column_type == 'continuous':
                 recovered_col_data = self._inverse_transform_continuous(column_transform_info, column_data, sigmas, st)
             else:
-                recovered_col_data = self._inverse_transform_discrete(column_transform_info, column_data)
+                recovered_col_data = self.inverse_transform_discrete(column_transform_info, column_data)
 
             recovered_column_data_list.append(recovered_col_data)
             column_names.append(column_transform_info.column_name)
@@ -330,7 +344,7 @@ class TabularTransformer(object):
         """Get the ids of the given `column_name`."""
         discrete_counter = 0
         column_id = 0
-        for column_transform_info in self._column_transform_info_list:
+        for column_transform_info in self.column_transform_info_list:
             if column_transform_info.column_name == column_name:
                 break
             if column_transform_info.column_type == 'discrete':
@@ -354,4 +368,4 @@ class TabularTransformer(object):
         }
 
     def get_column_transform_info_list(self):
-        return self._column_transform_info_list
+        return self.column_transform_info_list

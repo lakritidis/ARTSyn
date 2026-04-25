@@ -8,15 +8,13 @@ from imblearn.over_sampling import SVMSMOTE
 from imblearn.over_sampling import KMeansSMOTE
 from imblearn.over_sampling import ADASYN
 
-from artsyn.generators.c_gan import cGAN
-from artsyn.generators.sb_gan import sbGAN
-from artsyn.generators.ct_gan import ctGAN
-from artsyn.generators.ctd_gan import ctdGAN
-from artsyn.generators.cbr import CBR
-from artsyn.generators.ctabganplus_synthesizer import CTABGANPlusSynthesizer
-from artsyn.generators.ctabgan_synthesizer import CTABGANSynthesizer
-from artsyn.generators.fctgan_synthesizer import FCTGANSynthesizer
-from artsyn.TabularTransformer import TabularTransformer
+from DeepCoreML.generators.c_gan import cGAN
+from DeepCoreML.generators.sb_gan import sbGAN
+from DeepCoreML.generators.ct_gan import ctGAN
+from DeepCoreML.generators.ctd_gan import ctdGAN
+from DeepCoreML.generators.cbr import CBR
+from DeepCoreML.generators.ctabgan_synthesizer import CTABGANSynthesizer
+from DeepCoreML.TabularTransformer import TabularTransformer
 
 from sdv.single_table import GaussianCopulaSynthesizer
 from sdv.single_table import CTGANSynthesizer
@@ -66,7 +64,7 @@ class CTResampler(BaseResampler):
         x_train = dataset.x_[training_set_rows]
         y_train = dataset.y_[training_set_rows]
 
-        x_bal, y_bal = self._model.fit_resample(x_train, y_train)
+        x_bal, y_bal = self._model.fit_resample(x_train, y_train, categorical_columns=dataset.categorical_columns)
 
         return x_bal, y_bal
 
@@ -197,14 +195,14 @@ class TestSynthesizers:
         """
         self._random_state = random_state
 
-        disc = (128, 256)
+        disc = (256, 256)
         gen = (256, 256)
         emb_dim = 128
         knn = 10
         rad = 1
         epochs = 300
         batch_size = 100
-        max_clusters = 20
+        max_clusters = 11
 
         # Prepare the column descriptors for the SDV models
         dp_cols = {}
@@ -235,105 +233,67 @@ class TestSynthesizers:
                   k_neighbors=1, min_distance_factor=0.01, random_state=random_state)
 
         # Conditional Generative Adversarial Network (C-GAN)
-        c_gan = cGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, pac=1, epochs=epochs,
-                     batch_size=batch_size, sampling_strategy=sampling_strategy, random_state=random_state)
+        c_gan = cGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, pac=1, epochs=epochs, batch_size=batch_size,
+                     sampling_strategy=sampling_strategy, random_state=random_state)
 
         # Safe/Borderline Generative Adversarial Network (SB-GAN)
-        sb_gan = sbGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, pac=1, epochs=epochs,
-                       batch_size=batch_size, method='knn', k=knn, r=rad, sampling_strategy=sampling_strategy,
-                       random_state=random_state)
+        sb_gan = sbGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, pac=1, epochs=epochs, batch_size=batch_size,
+                       method='knn', k=knn, r=rad, sampling_strategy=sampling_strategy, random_state=random_state)
 
         # This ctGAN is from the GitHub implementation
-        # ctgan_1 = ctGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, pac=10, epochs=epochs,
-        #                batch_size=batch_size, discriminator_steps=1, log_frequency=True, verbose=False,
-        #                sampling_strategy=sampling_strategy, random_state=random_state)
+        ctgan_github = ctGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, pac=10, epochs=epochs, batch_size=batch_size,
+                             discriminator_steps=1, log_frequency=True, verbose=False, sampling_strategy=sampling_strategy,
+                             random_state=random_state)
 
         # And this ctGAN is from the Synthetic Data Vault - Default Discriminator (256, 256) - Generator (256, 256)
-        ctgan = CTGANSynthesizer(metadata, enforce_min_max_values=False, enforce_rounding=False, epochs=epochs,
-                                 verbose=False)
+        ctgan = CTGANSynthesizer(metadata, embedding_dim=emb_dim, discriminator_dim=disc, generator_dim=gen, pac=10, epochs=epochs,
+                                 batch_size=batch_size, enforce_min_max_values=False, enforce_rounding=False, verbose=False)
+
+        # CopulaGAN
+        cop_gan = CopulaGANSynthesizer(metadata, embedding_dim=emb_dim, discriminator_dim=disc,generator_dim=gen, pac=10, epochs=epochs,
+                                       enforce_min_max_values=False, enforce_rounding=False, verbose=False)
 
         # Tabular Variational Autoencoder (TVAE)
-        t_vae = TVAESynthesizer(metadata, enforce_min_max_values=False, enforce_rounding=False, epochs=1000,
-                                verbose=False)
+        t_vae = TVAESynthesizer(metadata, enforce_min_max_values=False, enforce_rounding=False, epochs=epochs, verbose=False)
 
         # Gaussian Copula
         g_cop = GaussianCopulaSynthesizer(metadata, enforce_min_max_values=False, enforce_rounding=False)
 
-        # CopulaGAN
-        cop_gan = CopulaGANSynthesizer(metadata, enforce_min_max_values=False, enforce_rounding=False, epochs=epochs,
-                                       verbose=False)
-
-        # CTABGAN
-        ctabgan = CTABGANSynthesizer(metadata, epochs=150, random_state=random_state)
-
         # CTABGAN+
-        ctabgan_plus = CTABGANPlusSynthesizer(metadata, epochs=150, random_state=random_state)
-
-        # FCTGAN
-        fct_gan = FCTGANSynthesizer(metadata, epochs=150, random_state=random_state)
+        ctabgan_plus = CTABGANSynthesizer(metadata, epochs=epochs, batch_size=batch_size, random_state=random_state)
 
         # CTD Generative Adversarial Network (ctdGAN)
-        ctdgan_km = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                           batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='mms11',
-                           disc_grad_noise=False, gen_grad_noise=False,
+        ctdgan_1cluster_mms = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
+                           batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='mms11', use_classifier=True,
+                           cluster_method='None', sampling_strategy=sampling_strategy, random_state=random_state)
+
+        ctdgan_unisam_mms = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
+                           batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='mms11', use_classifier=True,
+                           cluster_method='kmeans', sampling_strategy='unisam', random_state=random_state)
+
+        ctdgan_km_mms = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
+                           batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='mms11', use_classifier=True,
                            cluster_method='kmeans', sampling_strategy=sampling_strategy, random_state=random_state)
 
-        ctdgan_km_dg = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                           batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='mms11',
-                           disc_grad_noise=True, gen_grad_noise=True,
+        ctdgan_km_stds = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
+                           batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='stds', use_classifier=True,
                            cluster_method='kmeans', sampling_strategy=sampling_strategy, random_state=random_state)
 
-        ctdgan_km_g = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                           batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='mms11',
-                           disc_grad_noise=False, gen_grad_noise=True,
+        ctdgan_kp_mms = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
+                           batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='mms11',  use_classifier=True,
+                           cluster_method='kprot', sampling_strategy=sampling_strategy, random_state=random_state)
+
+        ctdgan_kp_stds = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
+                           batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='stds', use_classifier=True,
+                           cluster_method='kprot', sampling_strategy=sampling_strategy, random_state=random_state)
+
+        ctdgan_nolu_mms = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
+                           batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='mms11', use_classifier=True,
                            cluster_method='kmeans', sampling_strategy=sampling_strategy, random_state=random_state)
-
-        ctdgan_km_d = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                           batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='mms11',
-                           disc_grad_noise=True, gen_grad_noise=False,
-                           cluster_method='kmeans', sampling_strategy=sampling_strategy, random_state=random_state)
-
-        ctdgan_hac = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                            batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='mms11',
-                            disc_grad_noise=False, gen_grad_noise=False,
-                            cluster_method='hac', sampling_strategy=sampling_strategy, random_state=random_state)
-
-        # DCTD Generative Adversarial Network (ctdGAN)
-        dctdgan_km_u = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                              batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='bins-uni', bins='auto',
-                              cluster_method='kmeans', sampling_strategy=sampling_strategy, random_state=random_state)
-
-        dctdgan_hac_u = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                               batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='bins-uni', bins='auto',
-                               cluster_method='hac', sampling_strategy=sampling_strategy, random_state=random_state)
-
-        dctdgan_km_q = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                              batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='bins-q', bins='auto',
-                              cluster_method='kmeans', sampling_strategy=sampling_strategy, random_state=random_state)
-
-        dctdgan_hac_q = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                               batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='bins-q', bins='auto',
-                               cluster_method='hac', sampling_strategy=sampling_strategy, random_state=random_state)
-
-        dctdgan_km_k = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                              batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='bins-k', bins='auto',
-                              cluster_method='kmeans', sampling_strategy=sampling_strategy, random_state=random_state)
-
-        dctdgan_hac_k = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                               batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='bins-k', bins='auto',
-                               cluster_method='hac', sampling_strategy=sampling_strategy, random_state=random_state)
-
-        dctdgan_km_b = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                              batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='bins-bgm', bins='auto',
-                              cluster_method='kmeans', sampling_strategy=sampling_strategy, random_state=random_state)
-
-        dctdgan_hac_b = ctdGAN(embedding_dim=emb_dim, discriminator=disc, generator=gen, epochs=epochs,
-                               batch_size=batch_size, max_clusters=max_clusters, pac=10, scaler='bins-bgm', bins=5,
-                               cluster_method='hac', sampling_strategy=sampling_strategy, random_state=random_state)
 
         # All over-samplers.
         self.over_samplers_ = [
-            # BaseResampler(name="None", model=None, random_state=random_state),
+            #BaseResampler(name="None", model=None, random_state=random_state),
             #BaseResampler(name="ROS", model=ros, random_state=random_state),
             #BaseResampler(name="SMOTE", model=smote, random_state=random_state),
             #BaseResampler(name="BorderSMOTE", model=b_smote, random_state=random_state),
@@ -341,40 +301,35 @@ class TestSynthesizers:
             #BaseResampler(name="KMeans SMOTE", model=km_smote, random_state=random_state),
             #BaseResampler(name="ADASYN", model=adasyn, random_state=random_state),
             #BaseResampler(name="CBR", model=cbr, random_state=random_state),
-            # CTResampler("ctGAN", model=ctgan_1, random_state=random_state),
+            #CTResampler("ctGAN (Github)", model=ctgan_github, random_state=random_state),
 
             #BaseResampler(name="C-GAN", model=c_gan, random_state=random_state),
-            #BaseResampler(name="SB-GAN", model=sb_gan, random_state=random_state),
-            #SDVResampler(name="CT-GAN", model=ctgan, random_state=random_state),
-            #SDVResampler(name="TVAE", model=t_vae, random_state=random_state),
-            #SDVResampler(name="GCOP", model=g_cop, random_state=random_state),
             #SDVResampler(name="COP-GAN", model=cop_gan, random_state=random_state),
-            #SDVResampler(name="CTABGAN", model=ctabgan, random_state=random_state),
-            #SDVResampler(name="CTABGAN+", model=ctabgan_plus, random_state=random_state),
-            # SDVResampler(name="FCTBGAN", model=fct_gan, random_state=random_state),
+            #SDVResampler(name="CTAB-GAN", model=ctabgan_plus, random_state=random_state),
+            #SDVResampler(name="CT-GAN", model=ctgan, random_state=random_state),
+            #SDVResampler(name="GCOP", model=g_cop, random_state=random_state),
+            #BaseResampler(name="SB-GAN", model=sb_gan, random_state=random_state),
+            #SDVResampler(name="TVAE", model=t_vae, random_state=random_state),
 
-            CTResampler("CTD-GAN-KM", model=ctdgan_km, random_state=random_state),
-            # CTResampler("CTD-GAN-KM-DG", model=ctdgan_km_dg, random_state=random_state),
-            # CTResampler("CTD-GAN-KM-D", model=ctdgan_km_d, random_state=random_state),
-            # CTResampler("CTD-GAN-KM-G", model=ctdgan_km_g, random_state=random_state),
-            # CTResampler("CTD-GAN-HAC", model=ctdgan_hac, random_state=random_state),
+            # ctdGANs to try
+            #CTResampler("ctdgan_km_mms", model=ctdgan_km_mms, random_state=random_state),
+            #CTResampler("ctdgan_km_stds", model=ctdgan_km_stds, random_state=random_state),
+            #CTResampler("ctdgan_kp_mms", model=ctdgan_kp_mms, random_state=random_state),
+            #CTResampler("ctdgan_kp_stds", model=ctdgan_kp_stds, random_state=random_state),
 
-            # CTResampler("DCTD-GAN-KM-U", model=dctdgan_km_u, random_state=random_state),
-            # CTResampler("DCTD-GAN-KM-Q", model=dctdgan_km_q, random_state=random_state),
-            # CTResampler("DCTD-GAN-KM-K", model=dctdgan_km_k, random_state=random_state),
-            # CTResampler("DCTD-GAN-KM-BGM", model=dctdgan_km_b, random_state=random_state),
-        ]
+            # Experimental, suboptimal
+            #CTResampler("ctdgan_km_mms_balclu", model=ctdgan_km_mms_balclu, random_state=random_state),
+            #CTResampler("ctdgan_km_stds_balclu", model=ctdgan_km_stds_balclu, random_state=random_state),
+            #CTResampler("ctdgan_hac_mms", model=ctdgan_hac_mms, random_state=random_state),
+            #CTResampler("ctdgan_hac_stds", model=ctdgan_hac_stds, random_state=random_state),
+            #CTResampler("ctdgan_hac_mms_balclu", model=ctdgan_hac_mms_balclu, random_state=random_state),
+            #CTResampler("ctdgan_hac_stds_balclu", model=ctdgan_hac_stds_balclu, random_state=random_state),
+            #CTResampler("ctdgan_kprot_mms_balclu", model=ctdgan_kp_mms_balclu, random_state=random_state),
+            #CTResampler("ctdgan_kprot_stds_balclu", model=ctdgan_kp_stds_balclu, random_state=random_state),
 
-        self.over_samplers_dctd_ = [
-            CTResampler("DCTD-GAN-KM-U", model=dctdgan_km_u, random_state=random_state),
-            CTResampler("DCTD-GAN-KM-Q", model=dctdgan_km_q, random_state=random_state),
-            CTResampler("DCTD-GAN-KM-K", model=dctdgan_km_k, random_state=random_state),
-            CTResampler("DCTD-GAN-KM-BGM", model=dctdgan_km_b, random_state=random_state),
-
-            CTResampler("DCTD-GAN-HAC-U", model=dctdgan_hac_u, random_state=random_state),
-            CTResampler("DCTD-GAN-HAC-Q", model=dctdgan_hac_q, random_state=random_state),
-            CTResampler("DCTD-GAN-HAC-K", model=dctdgan_hac_k, random_state=random_state),
-            CTResampler("DCTD-GAN-HAC-BGM", model=dctdgan_hac_b, random_state=random_state),
+            #CTResampler("ctdgan_1cluster_mms", model=ctdgan_1cluster_mms, random_state=random_state),
+            #CTResampler("ctdgan_unisam_mms", model=ctdgan_unisam_mms, random_state=random_state),
+            CTResampler("ctdgan_km_NoLu_mms", model=ctdgan_nolu_mms, random_state=random_state),
         ]
 
         self.over_samplers_sdv_ = [
@@ -414,7 +369,7 @@ class TestSynthesizers:
 
         elif (isinstance(model, CTGANSynthesizer) or isinstance(model, TVAESynthesizer) or
               isinstance(model, GaussianCopulaSynthesizer) or isinstance(model, CopulaGANSynthesizer) or
-              isinstance(model, CTABGANPlusSynthesizer) or isinstance(model, CTABGANSynthesizer)):
+              isinstance(model, CTABGANSynthesizer)):
 
             self._add_sdv_resampler(name, model)
 
