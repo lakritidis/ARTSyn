@@ -1,5 +1,6 @@
 # ctGAN: Conditional Table Generative Adversarial Net - Forked from https://github.com/sdv-dev/CTGAN
 # This model was introduced in the following paper:
+#
 # L. Xu, M. Skoularidou, A. Cuesta-Infante, K. Veeramachaneni, "Modeling Tabular data using Conditional GAN",
 # Advances in Neural Information Processing Systems, vol. 32, 2019.
 
@@ -14,12 +15,12 @@ from tqdm import tqdm
 
 from sklearn.preprocessing import OneHotEncoder
 
-from artsyn.TabularTransformer import TabularTransformer
-from artsyn.generators.gan_discriminators import Critic
-from artsyn.generators.gan_generators import ctGenerator
-from artsyn.generators.GAN_Synthesizer import GANSynthesizer
+from DeepCoreML.TabularTransformer import TabularTransformer
+from DeepCoreML.generators.gan_discriminators import Critic
+from DeepCoreML.generators.gan_generators import ctGenerator
+from DeepCoreML.generators.GAN_Synthesizer import GANSynthesizer
 
-import artsyn.paths as paths
+import DeepCoreML.paths as paths
 
 
 class DataSampler(object):
@@ -32,7 +33,6 @@ class DataSampler(object):
             return len(column_info) == 1 and column_info[0].activation_fn == 'softmax'
 
         n_discrete_columns = sum([1 for column_info in output_info if is_discrete_column(column_info)])
-
         self._discrete_column_matrix_st = np.zeros(n_discrete_columns, dtype='int32')
 
         # Store the row id for each category in each discrete column. For example _rid_by_cat_cols[a][b]
@@ -252,9 +252,9 @@ class ctGAN(GANSynthesizer):
 
         return torch.cat(data_t, dim=1)
 
-    def _cond_loss(self, data, c, m):
+    def _cond_loss(self, generated_data, c, m):
         """Compute the cross entropy loss on the fixed discrete column."""
-        loss = []
+        discrete_loss = []
         st = 0
         st_c = 0
         for column_info in self._transformer.output_info_list:
@@ -265,20 +265,21 @@ class ctGAN(GANSynthesizer):
                 else:
                     ed = st + span_info.dim
                     ed_c = st_c + span_info.dim
-                    # print("Start:", st, ", End: ", ed, ", Data:", data[:, st:ed])
-                    # print("Start_Col:", st_c, ", End_Col: ", ed_c, ", CondVec:", c[:, st_c:ed_c])
-                    tmp = nn.functional.cross_entropy(data[:, st:ed], torch.argmax(c[:, st_c:ed_c], dim=1),
+                    #print("Start:", st, ", End: ", ed, ", Generated Data:", generated_data[:, st:ed])
+                    #print("Start_Col:", st_c, ", End_Col: ", ed_c, ", CondVec:", c[:, st_c:ed_c])
+                    tmp = nn.functional.cross_entropy(generated_data[:, st:ed], torch.argmax(c[:, st_c:ed_c], dim=1),
                                                       reduction='none')
                     # print("Temp=", tmp)
                     # a = input('').split(" ")[0]
                     # print("Original: ")
-                    loss.append(tmp)
+                    discrete_loss.append(tmp)
                     st = ed
                     st_c = ed_c
 
-        loss = torch.stack(loss, dim=1)  # noqa: PD013
-
-        return (loss * m).sum() / data.size()[0]
+        loss = torch.stack(discrete_loss, dim=1)  # noqa: PD013
+        ret_loss = (loss * m).sum() / generated_data.size()[0]
+        #print(m.shape)
+        return ret_loss
 
     def _validate_discrete_columns(self, train_data, discrete_columns):
         """Check whether ``discrete_columns`` exists in ``train_data``.
@@ -338,19 +339,19 @@ class ctGAN(GANSynthesizer):
         self._data_sampler = DataSampler(train_data, self._transformer.output_info_list, self._log_frequency)
 
         data_dim = self._transformer.output_dimensions
-
         # CtGAN components: ctGenerator & Critic
-        self.G_ = ctGenerator(self._embedding_dim + self._data_sampler.dim_cond_vec(), self.G_Arch_,
+        self.G_ = ctGenerator(self.embedding_dim_ + self._data_sampler.dim_cond_vec(), self.G_Arch_,
                               data_dim).to(self._device)
 
-        self.D_ = Critic(data_dim + self._data_sampler.dim_cond_vec(), self.D_Arch_, pac=self._pac).to(self._device)
+        self.D_ = Critic(data_dim + self._data_sampler.dim_cond_vec(), self.D_Arch_,
+                         pac=self.pac_).to(self._device)
 
         self.D_optimizer_ = torch.optim.Adam(self.D_.parameters(),
                                              lr=self._disc_lr, weight_decay=self._disc_decay, betas=(0.5, 0.9))
         self.G_optimizer_ = torch.optim.Adam(self.G_.parameters(),
                                              lr=self._gen_lr, weight_decay=self._gen_decay, betas=(0.5, 0.9))
 
-        mean = torch.zeros(self._batch_size, self._embedding_dim, device=self._device)
+        mean = torch.zeros(self._batch_size, self.embedding_dim_, device=self._device)
         std = mean + 1
 
         steps_per_epoch = max(len(train_data) // self._batch_size, 1)
@@ -394,7 +395,7 @@ class ctGAN(GANSynthesizer):
                     y_fake = self.D_(fake_cat)
                     y_real = self.D_(real_cat)
 
-                    pen = self.D_.calc_gradient_penalty(real_cat, fake_cat, self._device, self._pac)
+                    pen = self.D_.calc_gradient_penalty(real_cat, fake_cat, self._device, self.pac_)
                     loss_d = -(torch.mean(y_real) - torch.mean(y_fake))
 
                     self.D_optimizer_.zero_grad(set_to_none=False)
@@ -480,15 +481,14 @@ class ctGAN(GANSynthesizer):
         """
         if condition_column is not None and condition_value is not None:
             condition_info = self._transformer.convert_column_name_value_to_id(condition_column, condition_value)
-            global_condition_vec = self._data_sampler.generate_cond_from_condition_column_info(
-                condition_info, self._batch_size)
+            global_condition_vec = self._data_sampler.generate_cond_from_condition_column_info(condition_info, self._batch_size)
         else:
             global_condition_vec = None
 
         steps = n // self._batch_size + 1
         data = []
         for i in range(steps):
-            mean = torch.zeros(self._batch_size, self._embedding_dim)
+            mean = torch.zeros(self._batch_size, self.embedding_dim_)
             std = mean + 1
             fakez = torch.normal(mean=mean, std=std).to(self._device)
 
@@ -533,9 +533,9 @@ class ctGAN(GANSynthesizer):
         - dict: a dictionary that indicates the number of samples to be generated from each class
 
         Args:
+            categorical_columns:
             x_train: The training data instances.
             y_train: The classes of the training data instances.
-            categorical_columns: A list with the categorical column indices
 
         Returns:
             x_resampled: The training data instances + the generated data instances.
@@ -549,7 +549,12 @@ class ctGAN(GANSynthesizer):
 
         # Train ctGAN
         # self.train(training_data, discrete_columns=(self._input_dim,), store_losses=paths.output_path_loss)
-        self.train(training_data, discrete_columns=(self._input_dim,), store_losses=None)
+        if categorical_columns is None:
+            categorical_columns = [self._input_dim]
+        else:
+            categorical_columns.append(self._input_dim)
+
+        self.train(training_data, discrete_columns=categorical_columns, store_losses=None)
 
         # One-hot-encode the class labels; Get the number of classes and the number of samples to generate per class.
         class_encoder = OneHotEncoder()
@@ -575,12 +580,13 @@ class ctGAN(GANSynthesizer):
                     # print("\tSampling Class y:", cls, " Gen Samples ratio:", gen_samples_ratio[cls])
                     generated_samples = self.sample_original(n=samples_to_generate,
                                                              condition_column=str(self._input_dim),
-                                                             condition_value=cls)[:, 0:self._input_dim]
+                                                             condition_value=cls)
+                    generated_classes = np.full(generated_samples.shape[0], cls)
 
-                    generated_classes = np.full(samples_to_generate, cls)
-
-                    x_resampled = np.vstack((x_resampled, generated_samples))
+                    x_resampled = np.vstack((x_resampled, generated_samples[:, :generated_samples.shape[1]-1]))
                     y_resampled = np.hstack((y_resampled, generated_classes))
+
+                    print("Created:", y_resampled.shape[0], " - Accepted:", np.sum(y_resampled))
 
         # dictionary mode: the keys correspond to the targeted classes. The values correspond to the desired number of
         # samples for each targeted class.

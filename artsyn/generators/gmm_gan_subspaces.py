@@ -16,9 +16,9 @@ from sklearn.preprocessing import StandardScaler
 # from sklearn.pipeline import Pipeline
 from sklearn.ensemble import IsolationForest
 
-from artsyn.generators.gan_discriminators import PackedDiscriminator
-from artsyn.generators.gan_generators import Generator
-from artsyn.generators.GAN_Synthesizer import GANSynthesizer
+from DeepCoreML.generators.gan_discriminators import PackedDiscriminator
+from DeepCoreML.generators.gan_generators import Generator
+from DeepCoreML.generators.GAN_Synthesizer import GANSynthesizer
 
 
 class GMMComponent:
@@ -406,13 +406,13 @@ class GMM_GAN(GANSynthesizer):
         # The loss function for GAN training - applied to both the Discriminator and Generator.
         disc_loss_function = nn.BCELoss(reduction='mean')
 
-        # If the size of the batch does not allow an organization of the input vectors in packs of size self._pac, then
+        # If the size of the batch does not allow an organization of the input vectors in packs of size self.pac_, then
         # abort silently and return without updating the model parameters.
         num_samples = real_data.shape[0]
-        if num_samples % self._pac != 0:
+        if num_samples % self.pac_ != 0:
             return 0, 0
 
-        packed_samples = num_samples // self._pac
+        packed_samples = num_samples // self.pac_
 
         # DISCRIMINATOR TRAINING
         # Create fake samples from Generator
@@ -441,7 +441,7 @@ class GMM_GAN(GANSynthesizer):
 
         # 7. Reshape the data to feed it to Discriminator (num_samples, dimensionality) -> (-1, pac * dimensionality)
         # The samples are packed according to self.pac parameter.
-        all_data = all_data.reshape((-1, self._pac * (self._input_dim + self._num_gmm_components + self._n_classes)))
+        all_data = all_data.reshape((-1, self.pac_ * (self._input_dim + self._num_gmm_components + self._n_classes)))
 
         # 8. Pass the mixed data to the Discriminator and train the Discriminator (update its weights with backprop).
         # The loss function quantifies the Discriminator's ability to classify a real/fake sample as real/fake.
@@ -464,7 +464,7 @@ class GMM_GAN(GANSynthesizer):
         fake_data = torch.cat((fake_x, latent_y.to(self._device)), dim=1)
 
         # Reshape the data to feed it to Discriminator ( (num_samples, dimensionality) -> ( -1, pac * dimensionality )
-        fake_data = fake_data.reshape((-1, self._pac * (self._input_dim + self._n_classes + self._num_gmm_components)))
+        fake_data = fake_data.reshape((-1, self.pac_ * (self._input_dim + self._n_classes + self._num_gmm_components)))
 
         # Compute and back propagate the Generator loss
         d_predictions = self.D_(fake_data)
@@ -483,9 +483,9 @@ class GMM_GAN(GANSynthesizer):
             x_train: The training data instances.
             y_train: The classes of the training data instances.
         """
-        # Modify the size of the batch to align with self._pac
-        factor = self._batch_size // self._pac
-        batch_size = factor * self._pac
+        # Modify the size of the batch to align with self.pac_
+        factor = self._batch_size // self.pac_
+        batch_size = factor * self.pac_
 
         # Prepare the data for training (Clustering, Computation of Probability Distributions, Transformations, etc.)
         training_data = self.preprocess(x_train, y_train)
@@ -498,7 +498,7 @@ class GMM_GAN(GANSynthesizer):
         train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
 
         self.D_ = PackedDiscriminator(self.D_Arch_, input_dim=self._input_dim + self._n_classes + self._num_gmm_components,
-                                      pac=self._pac).to(self._device)
+                                      pac=self.pac_).to(self._device)
         self.G_ = (Generator(self.G_Arch_, input_dim=self.embedding_dim_ + self._n_classes + self._num_gmm_components,
                              output_dim=self._input_dim, activation=self.gen_activation_, normalize=self.batch_norm_).
                    to(self._device))

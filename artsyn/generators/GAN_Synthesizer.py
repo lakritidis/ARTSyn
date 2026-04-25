@@ -7,8 +7,10 @@ import torch
 
 from sklearn.preprocessing import OneHotEncoder
 
+from DeepCoreML.generators.Base_Synthesizer import BaseSynthesizer
 
-class GANSynthesizer:
+
+class GANSynthesizer(BaseSynthesizer):
     """`BaseGAN` provides the base class for all GAN subclasses. It inherits from `BaseGenerator`.
 
     Args:
@@ -32,19 +34,11 @@ class GANSynthesizer:
     def __init__(self, name, embedding_dim, discriminator, generator, pac, epochs, batch_size,
                  disc_lr, gen_lr, disc_decay, gen_decay, sampling_strategy, random_state):
 
-        self._name = name
-        self._input_dim = 0                     # Input data dimensionality
-        self._n_classes = 0                     # Number of classes in the input dataset
-        self._random_state = random_state       # An integer to seed the random number generators
+        super().__init__(name, random_state)
 
-        self._gen_samples_ratio = None          # Array [number of samples to generate per class]
-        self._samples_per_class = None          # Array [ [x_train_per_class] ]
-
-        self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-        self._embedding_dim = embedding_dim
-        self._batch_norm = True
-        self._pac = pac
+        self.embedding_dim_ = embedding_dim
+        self.batch_norm_ = True
+        self.pac_ = pac
         self._disc_lr = disc_lr
         self._gen_lr = gen_lr
         self._disc_decay = disc_decay
@@ -64,6 +58,9 @@ class GANSynthesizer:
         self.G_ = None
         self.G_Arch_ = generator
         self.G_optimizer_ = None
+
+        self.C_ = None
+        self.C_optimizer_ = None
 
     def display_models(self):
         """Display the Generator and Discriminator objects."""
@@ -143,8 +140,8 @@ class GANSynthesizer:
             self._samples_per_class.append(x_class_data)
 
         dataset_rows = training_data.shape[0]
-        if dataset_rows % self._pac != 0:
-            required_samples = self._pac * (dataset_rows // self._pac + 1) - dataset_rows
+        if dataset_rows % self.pac_ != 0:
+            required_samples = self.pac_ * (dataset_rows // self.pac_ + 1) - dataset_rows
             random_samples = training_data[np.random.randint(0, dataset_rows, (required_samples,))]
             training_data = np.vstack((training_data, random_samples))
 

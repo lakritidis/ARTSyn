@@ -1,8 +1,8 @@
 # CBR: Cluster-Based Resampler
 # This method was introduced in the following paper:
 #
-# L. Akritidis, P. Bozanis, "A Clustering-Based Resampling Technique with Cluster Structure Analysis for Software
-# Defect Detection in Imbalanced Datasets", Information Sciences, vol. 674, pp. 120724, 2024.
+# L. Akritidis, P. Bozanis, "A Clustering-Based Resampling Technique with Cluster Structure Analysis for Software Defect
+# Detection in Imbalanced Datasets", Information Sciences, vol. 674, pp. 120724, 2024.
 
 import numpy as np
 

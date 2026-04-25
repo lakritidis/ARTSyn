@@ -15,10 +15,10 @@ from tqdm import tqdm
 
 from sklearn.neighbors import KDTree
 
-from artsyn.TabularTransformer import TabularTransformer
-from artsyn.generators.gan_discriminators import PackedDiscriminator
-from artsyn.generators.gan_generators import Generator
-from artsyn.generators.GAN_Synthesizer import GANSynthesizer
+from DeepCoreML.TabularTransformer import TabularTransformer
+from DeepCoreML.generators.gan_discriminators import PackedDiscriminator
+from DeepCoreML.generators.gan_generators import Generator
+from DeepCoreML.generators.GAN_Synthesizer import GANSynthesizer
 
 
 class sbGAN(GANSynthesizer):
@@ -153,10 +153,10 @@ class sbGAN(GANSynthesizer):
         # The loss function for GAN training - applied to both the Discriminator and Generator.
         loss_function = nn.BCELoss()
 
-        # If the size of the batch does not allow an organization of the input vectors in packs of size self._pac, then
+        # If the size of the batch does not allow an organization of the input vectors in packs of size self.pac_, then
         # abort silently and return without updating the model parameters.
         num_samples = real_data.shape[0]
-        if num_samples % self._pac != 0:
+        if num_samples % self.pac_ != 0:
             print("pac error")
             return 0, 0
 
@@ -167,19 +167,19 @@ class sbGAN(GANSynthesizer):
         # 1. Randomly take samples from a normal distribution
         # 2. Assign one-hot-encoded random classes
         # 3. Pass the fake data (samples + classes) to the Generator
-        latent_x = torch.randn((num_samples, self._embedding_dim))
+        latent_x = torch.randn((num_samples, self.embedding_dim_))
         latent_classes = torch.from_numpy(np.random.randint(0, self._n_classes, num_samples)).to(torch.int64)
         latent_y = nn.functional.one_hot(latent_classes, num_classes=self._n_classes)
         latent_data = torch.cat((latent_x, latent_y), dim=1)
 
         # 4. The Generator produces fake samples (their labels are 0)
         fake_x = self.G_(latent_data.to(self._device))
-        fake_labels = torch.zeros((num_samples // self._pac, 1))
+        fake_labels = torch.zeros((num_samples // self.pac_, 1))
 
         # 5. The real samples (coming from the dataset) with their one-hot-encoded classes are assigned labels eq. to 1.
         real_x = real_data[:, 0:self._input_dim]
         real_y = real_data[:, self._input_dim:(self._input_dim + self._n_classes)]
-        real_labels = torch.ones((num_samples // self._pac, 1))
+        real_labels = torch.ones((num_samples // self.pac_, 1))
 
         # 6. Mix (concatenate) the fake samples (from Generator) with the real ones (from the dataset).
         all_x = torch.cat((real_x.to(self._device), fake_x))
@@ -197,7 +197,7 @@ class sbGAN(GANSynthesizer):
         # GENERATOR TRAINING
         self.G_optimizer_.zero_grad()
 
-        latent_x = torch.randn((num_samples, self._embedding_dim))
+        latent_x = torch.randn((num_samples, self.embedding_dim_))
         latent_classes = torch.from_numpy(np.random.randint(0, self._n_classes, num_samples)).to(torch.int64)
         latent_y = nn.functional.one_hot(latent_classes, num_classes=self._n_classes)
         latent_data = torch.cat((latent_x, latent_y), dim=1)
@@ -224,9 +224,9 @@ class sbGAN(GANSynthesizer):
             y_train: The classes of the training data instances.
         """
 
-        # Modify the size of the batch to align with self._pac
-        factor = self._batch_size // self._pac
-        batch_size = factor * self._pac
+        # Modify the size of the batch to align with self.pac_
+        factor = self._batch_size // self.pac_
+        batch_size = factor * self.pac_
 
         self._transformer = TabularTransformer(cont_normalizer='stds')
         self._transformer.fit(x_train)
@@ -238,9 +238,9 @@ class sbGAN(GANSynthesizer):
         train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
 
         self.D_ = PackedDiscriminator(self.D_Arch_, input_dim=self._input_dim + self._n_classes,
-                                      pac=self._pac).to(self._device)
-        self.G_ = Generator(self.G_Arch_, input_dim=self._embedding_dim + self._n_classes, output_dim=self._input_dim,
-                            activation=self.gen_activation_, normalize=self._batch_norm).to(self._device)
+                                      pac=self.pac_).to(self._device)
+        self.G_ = Generator(self.G_Arch_, input_dim=self.embedding_dim_ + self._n_classes, output_dim=self._input_dim,
+                            activation=self.gen_activation_, normalize=self.batch_norm_).to(self._device)
 
         self.D_optimizer_ = torch.optim.Adam(self.D_.parameters(),
                                              lr=self._disc_lr, weight_decay=self._disc_decay, betas=(0.5, 0.9))
@@ -286,7 +286,7 @@ class sbGAN(GANSynthesizer):
             # print("requested class:", y, "Num samples:", num_samples, "Num classes:", self._n_classes)
             latent_y = nn.functional.one_hot(torch.full(size=(num_samples,), fill_value=y), num_classes=self._n_classes)
 
-        latent_x = torch.randn((num_samples, self._embedding_dim))
+        latent_x = torch.randn((num_samples, self.embedding_dim_))
 
         # concatenate, copy to device, and pass to generator
         latent_data = torch.cat((latent_x, latent_y), dim=1).to(self._device)

@@ -1,176 +1,23 @@
-# Clusterer module for ctdGAN
 import numpy as np
 
 from sklearn.ensemble import IsolationForest
 
 from sklearn.cluster import KMeans, AgglomerativeClustering
+
+from kmodes.kprototypes import KPrototypes
+from kmodes.kmodes import KModes
+
+from sklearn.metrics import adjusted_rand_score
 from sklearn.mixture import GaussianMixture
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, OneHotEncoder, PowerTransformer
+from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
+
+import gower
 
 from joblib import Parallel, delayed
 
-import multiprocessing
-
-
-class ctdCluster:
-    """A typical cluster for ctdGAN."""
-    def __init__(self, label=None, scaler=None, embedding_dim=32, clip=False,
-                 continuous_columns=(), discrete_columns=(), random_state=0):
-        """
-        ctdCluster initializer. A typical cluster for ctdGAN.
-
-        Args:
-            label: The cluster's label
-            scaler (string): A descriptor that defines a transformation on the cluster's data. Values:
-
-              * '`None`'  : No transformation takes place; the data is considered immutable
-              * '`stds`'  : Standard scaler
-              * '`mms01`' : Min-Max scaler in the range (0,1)
-              * '`mms11`' : Min-Max scaler in the range (-1,1) - so that data is suitable for tanh activations
-              * 'yeo': Yeo-Johnson power transformer.
-            embedding_dim (int): The dimensionality of the latent space (for the probability distribution)
-            continuous_columns (tuple): The continuous columns in the input data
-            discrete_columns (tuple): The columns in the input data that contain categorical variables
-            clip (bool): If 'True' the reconstructed data will be clipped to their original minimum and maximum values.
-            random_state (int): Seed the random number generators. Use the same value for reproducible results.
-        """
-        self._label = label
-        self._embedding_dim = embedding_dim
-        self._continuous_columns = continuous_columns
-        self._discrete_columns = discrete_columns
-        self._clip = clip
-        self._random_state = random_state
-
-        self._num_samples = 0
-
-        self._min = None
-        self._max = None
-
-        self.class_distribution_ = None
-
-        # Define the Data Transformation Model for the continuous columns
-        if len(continuous_columns) > 0:
-            if scaler == 'stds':
-                self._scaler = StandardScaler()
-            elif scaler == 'mms01':
-                self._scaler = MinMaxScaler(feature_range=(0, 1))
-            elif scaler == 'mms11':
-                self._scaler = MinMaxScaler(feature_range=(-1, 1))
-            elif scaler == 'yeo':
-                self._scaler = PowerTransformer(method='yeo-johnson', standardize=True)
-            else:
-                self._scaler = None
-        else:
-            self._scaler = None
-
-    def fit(self, x, y=None, num_classes=0):
-        """
-            Compute cluster statistics and fit the selected Data Transformer.
-
-        Args:
-            x (NumPy array): The data to be transformed
-            y (NumPy array): If the data has classes, pass them here. The ctdGAN will be trained for resampling.
-            num_classes: The distinct number of classes in `y`.
-        """
-        self._num_samples = x.shape[0]
-
-        # Min/Max column values are used for clipping.
-        self._min = [np.min(x[:, i]) for i in self._continuous_columns]
-        self._max = [np.max(x[:, i]) for i in self._continuous_columns]
-
-        self.class_distribution_ = np.zeros(num_classes)
-        if y is not None:
-            unique_classes = np.unique(y, return_counts=True)
-            n = 0
-            for uv in unique_classes[0]:
-                self.class_distribution_[uv] = unique_classes[1][n]
-                n += 1
-
-        if self._scaler is not None:
-            x_cont = x[:, self._continuous_columns]
-            self._scaler.fit(x_cont)
-
-    def transform(self, x):
-        if self._scaler is not None:
-            # print("Before Transformation:\n", x)
-            x_cont = x[:, self._continuous_columns]
-            transformed = self._scaler.transform(x_cont)
-            # print("After Transformation of Continuous Cols:\n", transformed)
-
-            for d_col in self._discrete_columns:
-                transformed = np.insert(transformed, d_col, x[:, d_col], axis=1)
-            # print("After Transformation & concat with Discrete Cols:\n", transformed)
-            # exit()
-            return transformed
-        else:
-            return x
-
-    def fit_transform(self, x):
-        """Transform the sample vectors by applying the transformation function of `self._scaler`. In fact, this
-        is a simple wrapper for the `fit_transform` function of `self._scaler`.
-
-        `self._scaler` may implement a `Pipeline`.
-
-        Returns:
-            The transformed data.
-        """
-        self.fit(x)
-        return self._scaler.transform(x)
-
-    def inverse_transform(self, x):
-        """
-        Inverse the transformation that has been applied by `self.fit_transform()`. In fact, this is a wrapper for the
-        `inverse_transform` function of `self._scaler`, followed by a filter that clips the returned values.
-
-        Args:
-            x: The input data to be reconstructed (NumPy array).
-            x: The input data to be reconstructed (NumPy array).
-
-        Returns:
-            The reconstructed data.
-        """
-
-        if self._scaler is not None:
-            x_cont = x[:, self._continuous_columns]
-            reconstructed_data = self._scaler.inverse_transform(x_cont)
-
-            if self._clip:
-                np.clip(reconstructed_data, self._min, self._max, out=reconstructed_data)
-
-            for d_col in self._discrete_columns:
-                reconstructed_data = np.insert(reconstructed_data, d_col, x[:, d_col], axis=1)
-        else:
-            # reconstructed_data = x.copy()
-            reconstructed_data = x[:, 0:(x.shape[1] - 2)]
-
-        return reconstructed_data
-
-    def display(self):
-        """
-        Display useful cluster properties.
-        """
-        print("\t--- Cluster ", self._label, "-----------------------------------------")
-        print("\t\t* Num Samples: ", self._num_samples)
-        print("\t\t* Class Distribution: ", self.class_distribution_)
-        print("\t\t* Min values per column:", self._min)
-        print("\t\t* Max values per column:", self._max)
-        print("\t---------------------------------------------------------\n")
-
-    def get_label(self):
-        return self._label
-
-    def get_num_samples(self, c=None):
-        if c is None:
-            return self._num_samples
-        else:
-            if len(self.class_distribution_) > 0:
-                return self.class_distribution_[c]
-            else:
-                return -1
-
-    def set_label(self, v):
-        self._label = v
+from DeepCoreML.generators.ctd_cluster import ctdCluster
+from sklearn.utils import resample
 
 
 class ctdClusterer:
@@ -178,49 +25,53 @@ class ctdClusterer:
 
     It partitions the real space into clusters; then, it transforms the data of each cluster.
     """
-    def __init__(self, cluster_method='kmeans', max_clusters=10, scaler=None, samples_per_class=(),
-                 embedding_dim=32, continuous_columns=(), discrete_columns=(), random_state=0):
+    def __init__(self, cluster_method='kmeans', max_clusters=10, scaler='mms11', samples_per_class=(), embedding_dim=32,
+                 continuous_columns=(), categorical_columns=(), random_state=0):
         """
         Initializer
 
         Args
             cluster_method (str): The clustering algorithm to apply. Supported values:
-              * kmeans: K-Means++
+              * kmeans: K-Means
               * hac: Hierarchical Agglomerative Clustering
               * gmm: Gaussian Mixture Model
+
             max_clusters (int): The maximum number of clusters to create
             scaler (string): A descriptor that defines a transformation on the cluster's data. Supported values:
+
               * '`None`'  : No transformation takes place; the data is considered immutable
               * '`stds`'  : Standard scaler
               * '`mms01`' : Min-Max scaler in the range (0,1)
               * '`mms11`' : Min-Max scaler in the range (-1,1) - so that data is suitable for tanh activations
-              * '`yeo`':  Yeo-Johnson Power Transformer
             embedding_dim (int): The dimensionality of the latent space (for the probability distribution)
             continuous_columns (tuple): The continuous columns in the input data
-            discrete_columns (tuple): The columns in the input data that contain categorical variables
+            categorical_columns (tuple): The columns in the input data that contain categorical variables
             samples_per_class (List or tuple of integers): Contains the number of samples per class
             random_state: Seed the random number generators. Use the same value for reproducible results.
         """
         self._cluster_method = cluster_method
-        if cluster_method not in ['kmeans', 'hac', 'gmm']:
+        if cluster_method not in ['None', 'kmeans', 'hac', 'gmm', 'kprot']:
             self._cluster_method = 'kmeans'
 
+        self._max_clusters = max_clusters
+        if self._max_clusters < 2:
+            self._cluster_method = 'None'
+
         self._scaler = scaler
-        if scaler not in ('None', 'none', 'stds', 'mms01', 'mms11', 'yeo', 'bins-uni', 'bins-q', 'bins-k', 'bins-bgm'):
+        if scaler not in ['None', 'stds', 'mms01', 'mms11', 'yeo']:
             self._scaler = 'mms11'
 
-        self._max_clusters = max_clusters
-        self._random_state = random_state
+        self._samples_per_class = samples_per_class
         self._embedding_dim = embedding_dim
         self._continuous_columns = continuous_columns
-        self._discrete_columns = discrete_columns
+        self._categorical_columns = categorical_columns
+        self._random_state = random_state
 
         self.num_clusters_ = 0
         self.clusters_ = []
         self.cluster_labels_ = None
         self.probability_matrix_ = None
         self.imbalance_matrix_ = None
-        self._samples_per_class = samples_per_class
 
     def perform_clustering(self, x_train, y_train, num_classes, pac):
         """
@@ -234,37 +85,124 @@ class ctdClusterer:
         Returns:
             Transformed data
         """
-        # Prepare the data for clustering:
-        # 1) MinMax scale the continuous variables, and 2) OneHotEncode the discrete variables.
-        column_transformer = ColumnTransformer([
-            ("mms", MinMaxScaler(), self._continuous_columns),
-            ("ohe", OneHotEncoder(), self._discrete_columns)
-        ], sparse_threshold=0)
-        x_scaled = column_transformer.fit_transform(x_train)
-
-        # Find the optimal number of clusters (best_k).
-        # Perform multiple executions and pick the one that produces the minimum scaled inertia.
-        # jobs = 0.2 * multiprocessing.cpu_count()
-        jobs = -1
+        # STEP 1: Prepare the data for clustering:
+        # For KMeans or Gaussian Mixture
         k_range = range(2, self._max_clusters)
-        scores = Parallel(n_jobs=jobs)(delayed(self._run_clustering)(x_scaled, k) for k in k_range)
-        best = min(scores, key=lambda score_tuple: score_tuple[1])
-        self.num_clusters_ = best[0]
-        best_cov_type = best[2]
+        if self._cluster_method == 'kmeans' or self._cluster_method == 'gmm':
+            # MinMax scale the continuous variables, and 2) OneHotEncode the discrete variables.
+            column_transformer = ColumnTransformer([
+                ("mms", MinMaxScaler(), self._continuous_columns),
+                ("ohe", OneHotEncoder(), self._categorical_columns)
+            ], sparse_threshold=0)
+            x_scaled = column_transformer.fit_transform(x_train)
 
-        # After the optimal number of clusters best_k has been determined, execute one last k-Means with best_k clusters
-        if self._cluster_method == 'hac':
-            cluster_method = AgglomerativeClustering(n_clusters=self.num_clusters_)
-        elif self._cluster_method == 'kmeans':
-            cluster_method = KMeans(n_clusters=self.num_clusters_, n_init='auto', random_state=self._random_state)
-        elif self._cluster_method == 'gmm':
-            cluster_method = GaussianMixture(n_components=self.num_clusters_, covariance_type=best_cov_type,
-                                             random_state=self._random_state)
-        else:
-            cluster_method = KMeans(n_clusters=self.num_clusters_, n_init='auto', random_state=self._random_state)
+            # Find the optimal number of clusters (best_k).
+            # Perform multiple executions and pick the one that produces the minimum scaled inertia.
+            # jobs = 0.2 * multiprocessing.cpu_count()
+            jobs = -1
+            scores = Parallel(n_jobs=jobs)(delayed(self._scaled_inertia)(x_scaled, k) for k in k_range)
+            best = min(scores, key=lambda score_tuple: score_tuple[1])
+            self.num_clusters_ = best[0]
+            best_cov_type = best[2]
 
-        self.cluster_labels_ = cluster_method.fit_predict(x_scaled)
+            print("\t\tEstimated number of clusters:", self.num_clusters_, "- Categorical columns:",
+                  np.array(self._categorical_columns).astype(int))
 
+            # After the optimal number of clusters best_k has been determined, execute one last k-Means with best_k
+            # clusters, or GMM with best_k clusters and best_cov_type covariance type.
+            if self._cluster_method == 'gmm':
+                cluster_method = GaussianMixture(n_components=self.num_clusters_, covariance_type=best_cov_type,
+                                                 random_state=self._random_state)
+            else:
+                cluster_method = KMeans(n_clusters=self.num_clusters_, n_init='auto', init='k-means++', random_state=self._random_state)
+
+            self.cluster_labels_ = cluster_method.fit_predict(x_scaled)
+
+            # For Hierarchical Agglomerative clustering (HAC), we first compute the Gower distance matrix and then, we apply
+        # Agglomerative clustering to that matrix. The ideal number of clusters is determined by the max Silhouette score.
+        elif self._cluster_method == 'hac':
+            categorical_mask = np.zeros(x_train.shape[1], dtype=bool)
+            categorical_mask[list(self._categorical_columns)] = True
+
+            #stability_scores = self.stability_curve_optimized(x_train, categorical_mask, k_range=k_range, b=10, sample_fraction=0.6)
+            #self.num_clusters_ = k_range[np.argmax(stability_scores)]
+            print("\t\tEstimated number of clusters:", self.num_clusters_, "- Categorical columns:", np.array(self._categorical_columns).astype(int))
+            gower_distance_matrix = gower.gower_matrix(x_train.astype(float), cat_features=categorical_mask)
+
+            cluster_method = AgglomerativeClustering(n_clusters=self.num_clusters_, metric="precomputed", linkage="average")
+            self.cluster_labels_ = cluster_method.fit_predict(gower_distance_matrix)
+
+        # For HDBSCAN, we do not have to estimate the ideal numer of clusters. We first compute the Gower distance
+        # matrix and then, we apply HDBSCAN to that distance matrix.
+        elif self._cluster_method == 'kprot':
+            num_runs = 2
+
+            # If the dataset is too large, take a sample of it.
+            sample_fraction = 0.7
+            if x_train.shape[0] >= 3000:
+                sample_fraction = 0.3 + 0.7 * np.exp(-0.00025 * (x_train.shape[0] - 3000))
+
+            # scaler for the numerical data (used for clustering)
+            scaler = MinMaxScaler()
+
+            if len(self._categorical_columns) > 0 and len(self._continuous_columns) > 0:
+                print("\t\tRunning with k-Prototypes")
+
+                # Scale the numerical features, leave the categorical ones intact.
+                x_scaled = x_train.copy()
+                numerical_data = x_scaled[:, self._continuous_columns].astype(float)
+
+                # The Gamma parameter controls the importance of categorical vs numeric columns
+                gamma = numerical_data.std(axis=0).mean()
+                numerical_data = scaler.fit_transform(numerical_data)
+                x_scaled[:, self._continuous_columns] = numerical_data
+
+                # Estimate the best number of clusters
+                self.num_clusters_ = self.stability_analysis_parallel(x_scaled, k_values=k_range, gamma=gamma,
+                                                                      n_runs=num_runs, sample_frac=sample_fraction,
+                                                                      random_state=self._random_state)
+
+                cluster_method = KPrototypes(n_clusters=self.num_clusters_, init='Cao', n_init=10, gamma=None,
+                                             verbose=0, random_state=self._random_state)
+                self.cluster_labels_ = cluster_method.fit_predict(x_scaled, categorical=self._categorical_columns)
+
+            elif len(self._categorical_columns) > 0 and len(self._continuous_columns) == 0:
+                print("\t\tRunning with k-Modes")
+
+                # Estimate the best number of clusters
+                #if current_dataset_name == 'nursery':
+                #    self.num_clusters_ = 10
+                #else:
+                self.num_clusters_ = self.stability_analysis_parallel(x_train, k_values=k_range, gamma=0,
+                                                                      n_runs=num_runs, sample_frac=sample_fraction,
+                                                                      random_state=self._random_state)
+
+                cluster_method = KModes(n_clusters=self.num_clusters_, init='Cao', n_init=10, verbose=0,
+                                        random_state=self._random_state)
+                self.cluster_labels_ = cluster_method.fit_predict(x_train)
+
+            else:
+                print("\t\tRunning with k-Means")
+                sample_fraction = 0.7
+                # Scale the numerical features, leave the categorical ones intact.
+                x_scaled = scaler.fit_transform(x_train)
+
+                # Estimate the best number of clusters
+                self.num_clusters_ = self.stability_analysis_parallel(x_scaled, k_values=k_range, gamma=0,
+                                                                      n_runs=num_runs, sample_frac=sample_fraction,
+                                                                      random_state=self._random_state)
+
+                cluster_method = KMeans(n_clusters=self.num_clusters_, n_init='auto', init='k-means++',
+                                        random_state=self._random_state)
+                self.cluster_labels_ = cluster_method.fit_predict(x_scaled)
+
+        # Ablation Study Only:
+        elif self._cluster_method == 'None':
+            print("\t\t\tRunning in Ablation Mode with 1 cluster")
+            self.num_clusters_ = 1
+            self.cluster_labels_ = np.zeros(x_train.shape[0])
+
+        # STEP 2: POST-CLUSTERING PROCESSING
         # Partition the dataset and create the appropriate Cluster objects.
         transformed_data = None
         for u in range(self.num_clusters_):
@@ -272,13 +210,15 @@ class ctdClusterer:
             y_u = y_train[self.cluster_labels_ == u]
 
             cluster = ctdCluster(label=u, scaler=self._scaler,
-                                 clip=True, embedding_dim=self._embedding_dim,
-                                 continuous_columns=self._continuous_columns, discrete_columns=self._discrete_columns,
+                                 clip=False, embedding_dim=self._embedding_dim,
+                                 continuous_columns=self._continuous_columns, categorical_columns=self._categorical_columns,
                                  random_state=self._random_state)
-
             cluster.fit(x_u, y_u, len(self._samples_per_class))
-            x_transformed = cluster.transform(x_u)
 
+            # Transform the data in a cluster-wise manner.
+            x_transformed = cluster.transform(x_u)
+            # print("transformed:", x_transformed[0:10, :])
+            # exit()
             cluster_labels = (u * np.ones(y_u.shape[0])).reshape(-1, 1)
             class_labels = np.array(y_u).reshape(-1, 1)
 
@@ -290,7 +230,7 @@ class ctdClusterer:
 
             self.clusters_.append(cluster)
 
-        # Create the probability matrix; Each element (i,j) stores the conditional probability
+        # Construct the probability matrix; Each element (i,j) stores the conditional probability
         # P(cluster==u | class=y) = P( (class==y) AND (cluster==u) ) / P(class==y)
         if num_classes > 1:
             self.probability_matrix_ = np.zeros((num_classes, self.num_clusters_))
@@ -338,7 +278,8 @@ class ctdClusterer:
         # (x_clean, y_clean) is the new dataset without the outliers
         # print("Clean Dataset Shape:", x_clean.shape)
 
-    def _run_clustering(self, scaled_data, num_clusters, alpha_k=0.02):
+
+    def _scaled_inertia(self, scaled_data, num_clusters, alpha_k=0.02):
         """
         Args:
         scaled_data: matrix
@@ -357,17 +298,7 @@ class ctdClusterer:
         cov_type = 'None'
         inertia_o = np.square((scaled_data - scaled_data.mean(axis=0))).sum()
 
-        if self._cluster_method == 'hac':
-            hac = AgglomerativeClustering(n_clusters=num_clusters, compute_distances=True)
-            hac.fit(scaled_data)
-
-            inertia = 0
-            for u in range(num_clusters):
-                cluster_data = scaled_data[hac.labels_ == u, :]
-                inertia += np.square((cluster_data - cluster_data.mean(axis=0))).sum()
-            ret_val = inertia / inertia_o + alpha_k * num_clusters
-
-        elif self._cluster_method == 'kmeans':
+        if self._cluster_method == 'kmeans':
             kmeans = KMeans(n_clusters=num_clusters, random_state=self._random_state, n_init='auto')
             kmeans.fit(scaled_data)
             ret_val = kmeans.inertia_ / inertia_o + alpha_k * num_clusters
@@ -384,6 +315,79 @@ class ctdClusterer:
             ret_val = min_bic
 
         return num_clusters, ret_val, cov_type
+
+    def _fit_single_run(self, scaled_data, num_clusters, gamma, indices, random_state):
+        if len(self._categorical_columns) > 0 and len(self._continuous_columns) > 0:
+            model = KPrototypes(n_clusters=num_clusters, init='Cao', n_init=2, gamma=None, verbose=0, random_state=random_state)
+            labels = model.fit_predict(scaled_data[indices], categorical=self._categorical_columns)
+
+        elif len(self._categorical_columns) > 0 and len(self._continuous_columns) == 0:
+            model = KModes(n_clusters=num_clusters, init='Cao', n_init=2, verbose=0, random_state=random_state)
+            labels = model.fit_predict(scaled_data[indices])
+
+        else:
+            model = KMeans(n_clusters=num_clusters, init='k-means++', n_init=10, random_state=random_state)
+            labels = model.fit_predict(scaled_data[indices])
+
+        return indices, labels
+
+    def stability_analysis_parallel(self, scaled_data, k_values=range(2, 11), gamma=0, n_runs=5, sample_frac=0.7, random_state=0):
+        np.random.seed(random_state)
+        results = {}
+        n = scaled_data.shape[0]
+        sample_size = int(sample_frac * n)
+
+        for k in k_values:
+            # Prepare subsamples
+            seeds = [random_state + i for i in range(n_runs)]
+            subsamples = [
+                resample(np.arange(n), replace=False, n_samples=sample_size, random_state=seed)
+                for seed in seeds
+            ]
+
+            # Parallel model fitting
+            runs = Parallel(n_jobs=-1)(delayed(self._fit_single_run)(scaled_data, k, gamma, indices, seed)
+                for indices, seed in zip(subsamples, seeds)
+            )
+
+            # Compute ARI (can also parallelize if needed)
+            ari_scores = []
+            for i in range(n_runs):
+                for j in range(i + 1, n_runs):
+                    idx_i, labels_i = runs[i]
+                    idx_j, labels_j = runs[j]
+
+                    common, i_pos, j_pos = np.intersect1d(idx_i, idx_j, return_indices=True)
+
+                    if len(common) > 0:
+                        ari = adjusted_rand_score(labels_i[i_pos], labels_j[j_pos])
+                        ari_scores.append(ari)
+
+            results[k] = np.mean(ari_scores)
+
+        window = 3
+        keys = np.array(list(results.keys()))
+        vals = np.array(list(results.values()))
+        smooth_vals = []
+        for i in range(len(vals)):
+            start = max(0, i - window // 2)
+            end = min(len(vals), i + window // 2 + 1)
+            smooth_vals.append(sum(vals[start:end]) / (end - start))
+
+        #smoothed_vals = np.convolve(vals, np.ones(window) / window, mode='same')
+        #print(vals)
+        #print("Smooth vals:", smooth_vals)
+        #print("Smoothed (convolved) vals: ", smoothed_vals)
+
+        for d in range(4, 6):
+            for i in range(1, len(smooth_vals)):
+                delta = abs(smooth_vals[i] - smooth_vals[i - 1])
+                if delta < d / 100 and smooth_vals[i] >= 0.4:
+                    print("Estimated Number of clusters:", keys[i - 1])
+                    return keys[i]  # first plateau point
+
+        print("Estimated Number of clusters:", keys[-1])
+        return keys[-1]
 
     def display(self):
         print("Num Clusters: ", self.num_clusters_)
