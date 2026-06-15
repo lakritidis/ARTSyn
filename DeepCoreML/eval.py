@@ -183,6 +183,7 @@ def eval_resampling(datasets, num_folds=5, transformer=None, random_state=0):
                     try:
                         x_balanced, y_balanced = synthesizer.fit_resample(dataset=dataset, training_set_rows=train_idx,
                                                                               sampling_strategy='auto')
+
                         x_balanced, y_balanced = shuffle(x_balanced, y_balanced, random_state=random_state)
 
                     except (ValueError, RuntimeError) as e:
